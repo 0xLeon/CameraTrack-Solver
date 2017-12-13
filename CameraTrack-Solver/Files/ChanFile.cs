@@ -2,9 +2,9 @@
 using System.IO;
 using System.Text;
 
-using CmdCameraTrackSolver.Frames;
+using CameraTrackSolver.Frames;
 
-namespace CmdCameraTrackSolver.Files
+namespace CameraTrackSolver.Files
 {
 	public class ChanFile
 	{

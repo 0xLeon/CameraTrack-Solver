@@ -2,9 +2,9 @@
 using System.IO;
 using System.Text;
 
-using CmdCameraTrackSolver.Frames;
+using CameraTrackSolver.Frames;
 
-namespace CmdCameraTrackSolver.Parsers
+namespace CameraTrackSolver.Parsers
 {
 	public class TrackFileParser
 	{

@@ -1,13 +1,13 @@
 ﻿using System;
+using System.Text.RegularExpressions;
 
 using Rug.Cmd;
 
-using CmdCameraTrackSolver.Parsers;
-using CmdCameraTrackSolver.Solvers;
-using CmdCameraTrackSolver.Exceptions;
-using System.Text.RegularExpressions;
+using CameraTrackSolver.Parsers;
+using CameraTrackSolver.Solvers;
+using CameraTrackSolver.Exceptions;
 
-namespace CmdCameraTrackSolver
+namespace CameraTrackSolver
 {
 	class Program
 	{

@@ -1,4 +1,4 @@
-﻿namespace CmdCameraTrackSolver.Solvers
+﻿namespace CameraTrackSolver.Solvers
 {
 	interface ICameraTrackSolver
 	{

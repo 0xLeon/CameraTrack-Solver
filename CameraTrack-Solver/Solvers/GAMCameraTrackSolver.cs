@@ -1,9 +1,9 @@
 ﻿using System;
 
-using CmdCameraTrackSolver.Frames;
-using CmdCameraTrackSolver.Parsers;
+using CameraTrackSolver.Frames;
+using CameraTrackSolver.Parsers;
 
-namespace CmdCameraTrackSolver.Solvers
+namespace CameraTrackSolver.Solvers
 {
 	class GAMCameraTrackSolver : AbstractTrackSolver
 	{

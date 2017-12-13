@@ -4,12 +4,12 @@ using System.IO;
 using System.Linq;
 using System.Text;
 
-using CmdCameraTrackSolver.Frames;
-using CmdCameraTrackSolver.Parsers;
-using CmdCameraTrackSolver.Files;
-using CmdCameraTrackSolver.Exceptions;
+using CameraTrackSolver.Frames;
+using CameraTrackSolver.Parsers;
+using CameraTrackSolver.Files;
+using CameraTrackSolver.Exceptions;
 
-namespace CmdCameraTrackSolver.Solvers
+namespace CameraTrackSolver.Solvers
 {
 	abstract class AbstractTrackSolver : ICameraTrackSolver
 	{

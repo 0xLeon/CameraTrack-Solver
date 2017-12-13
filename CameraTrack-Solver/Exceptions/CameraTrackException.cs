@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace CmdCameraTrackSolver.Exceptions
+namespace CameraTrackSolver.Exceptions
 {
 	class CameraTrackException : Exception
 	{

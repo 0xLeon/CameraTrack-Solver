@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 
-namespace CmdCameraTrackSolver.Frames
+namespace CameraTrackSolver.Frames
 {
 	public class SensorEvent : IComparable<SensorEvent>
 	{

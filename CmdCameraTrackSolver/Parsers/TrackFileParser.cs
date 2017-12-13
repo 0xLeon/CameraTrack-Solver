@@ -1,34 +1,35 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
 
-namespace CmdCameraTrackSolver
+using CmdCameraTrackSolver.Frames;
+
+namespace CmdCameraTrackSolver.Parsers
 {
 	public class TrackFileParser
 	{
 		private string filepath;
 		private CameraTrackerType trackFileType;
-		private SortedSet<SensorEvent> sensorData;
+		private SortedList<ulong, SensorEvent> sensorData;
 		private bool parsed = false;
 
 		public TrackFileParser(string filepath)
 		{
 			this.filepath = filepath;
-			this.sensorData = new SortedSet<SensorEvent>(new SensorEvent.Comparer());
+			this.sensorData = new SortedList<ulong, SensorEvent>(new SensorEvent.TimestampComparer());
 		}
 
 		public bool Parse()
 		{
 			StreamReader sr = new StreamReader(this.filepath, new UTF8Encoding(false));
+			SensorEvent sensorEvent = null;
 
 			this.trackFileType = (CameraTrackerType) uint.Parse(sr.ReadLine().Trim());
 
 			while (!sr.EndOfStream)
 			{
-				this.sensorData.Add(SensorEvent.FromTrackLine(sr.ReadLine()));
+				sensorEvent = SensorEvent.FromTrackLine(sr.ReadLine());
+				this.sensorData.Add(sensorEvent.Timestamp, sensorEvent);
 			}
 
 			this.parsed = true;
@@ -52,7 +53,7 @@ namespace CmdCameraTrackSolver
 			}
 		}
 
-		public SortedSet<SensorEvent> SensorData
+		public SortedList<ulong, SensorEvent> SensorData
 		{
 			get
 			{
@@ -70,9 +71,10 @@ namespace CmdCameraTrackSolver
 
 		public enum CameraTrackerType
 		{
+			RL_DEFAULT,
+			GL_DEFAULT,
 			GAM_DEFAULT,
 			GAM_NATIVE,
-			RL_DEFAULT
 		}
 	}
 }

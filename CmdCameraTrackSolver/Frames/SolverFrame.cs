@@ -1,23 +1,22 @@
-﻿using MathNet.Numerics.LinearAlgebra;
-using System;
+﻿using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
-namespace CmdCameraTrackSolver
+namespace CmdCameraTrackSolver.Frames
 {
-	class SolverFrame : IComparable<SolverFrame>
+	public class SolverFrame : IComparable<SolverFrame>
 	{
 		private ulong timestamp;
-		private Vector<double> position;
-		private Vector<double> rotation;
+		private double[] position;
+		private double[] rotation;
 
-		public SolverFrame(ulong timestamp, double[] position, double[] rotation)
+		public SolverFrame(ulong timestamp, ref double[] position, ref double[] rotation)
 		{
 			this.timestamp = timestamp;
-			this.position = Vector<double>.Build.DenseOfArray(position);
-			this.rotation = Vector<double>.Build.DenseOfArray(rotation);
+			this.position = new double[position.Length];
+			this.rotation = new double[rotation.Length];
+
+			Array.Copy(position, this.position, this.position.Length);
+			Array.Copy(rotation, this.rotation, this.rotation.Length);
 		}
 
 		public int CompareTo(SolverFrame other)
@@ -38,7 +37,7 @@ namespace CmdCameraTrackSolver
 			}
 		}
 
-		public Vector<double> Position
+		public double[] Position
 		{
 			get
 			{
@@ -46,7 +45,7 @@ namespace CmdCameraTrackSolver
 			}
 		}
 
-		public Vector<double> Rotation
+		public double[] Rotation
 		{
 			get
 			{

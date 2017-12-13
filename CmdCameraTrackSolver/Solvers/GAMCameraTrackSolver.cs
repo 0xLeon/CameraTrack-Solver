@@ -1,28 +1,17 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
-namespace CmdCameraTrackSolver
+using CmdCameraTrackSolver.Frames;
+using CmdCameraTrackSolver.Parsers;
+
+namespace CmdCameraTrackSolver.Solvers
 {
-	class GAMCameraTrackSolver : ICameraTrackSolver
+	class GAMCameraTrackSolver : AbstractTrackSolver
 	{
-		private const double ns2s = 1.0 / 1000000000.0;
-		private const double rad2grad = 180.0 / Math.PI;
 		private const double freeFallGravitySquared = 0.961703842225;
 
-		private IEnumerable<SensorEvent> sensorData;
-		private SortedList<ulong, SolverFrame> solverData;
-		private SortedSet<ChanFrame> chanFrames;
-		private double fps;
-		private double nsPerFrame;
-
-		private ulong firstTimestamp;
-
 		private bool gyroInitialized = false;
-		private double[] gyroRotation = new double[] { 0.0, 0.0, 0.0 };
 		private ulong lastGyroTimestamp = 0;
+		private double[] gyroRotation = new double[] { 0.0, 0.0, 0.0 };
 
 		private double[] accelMagnetRotation;
 		private double[] accelMagnetPosition;
@@ -31,120 +20,70 @@ namespace CmdCameraTrackSolver
 		private ulong fusionLastTimestamp = 0;
 		private ulong fusionCounter = 0;
 
-		private bool solved = false;
+		private double[] dummyData = new double[3];
 
-		public GAMCameraTrackSolver(TrackFileParser tfParser, double fps)
+		public GAMCameraTrackSolver(TrackFileParser tfParser, double fps) : base(tfParser, fps)
 		{
-			if (!tfParser.Parsed)
-			{
-				tfParser.Parse();
-			}
-
-			if ((TrackFileParser.CameraTrackerType.GAM_DEFAULT != tfParser.TrackFileType) && (TrackFileParser.CameraTrackerType.GAM_NATIVE != tfParser.TrackFileType))
-			{
-				throw new CameraTrackException("Incompatible track file type");
-			}
-
-			ulong rawFirstTimestamp = tfParser.SensorData.First().Timestamp;
-
-			this.sensorData = tfParser.SensorData.Where(sEvent => (sEvent.Timestamp - rawFirstTimestamp) > 500000000);
-			this.solverData = new SortedList<ulong, SolverFrame>(tfParser.SensorData.Count / 3, null);
-			this.chanFrames = new SortedSet<ChanFrame>(new ChanFrame.Comparer());
-			this.fps = fps;
-			this.nsPerFrame = 1000000000.0 / this.fps;
-			this.firstTimestamp = this.sensorData.First().Timestamp;
 			this.fusionLastTimestamp = this.firstTimestamp;
 		}
 
-		public void WriteTrackFile(string filepath)
+		public override TrackFileParser.CameraTrackerType[] GetSupportedTrackFileTypes()
 		{
-			if (!this.solved)
+			return new TrackFileParser.CameraTrackerType[] {
+				TrackFileParser.CameraTrackerType.GAM_DEFAULT,
+				TrackFileParser.CameraTrackerType.GAM_NATIVE,
+			};
+		}
+
+		protected override void HandleSensorEvent(SensorEvent sensorEvent)
+		{
+			switch (sensorEvent.Type)
 			{
-				new CameraTrackException("Didn't solve camera movement from sensor data.");
+				case SensorEvent.SensorType.ACCEL:
+					this.HandleAccelEvent(sensorEvent);
+					break;
+				case SensorEvent.SensorType.GYRO:
+					this.HandleGyroEvent(sensorEvent);
+					break;
+				case SensorEvent.SensorType.MAGNETIC:
+					this.HandleMagneticEvent(sensorEvent);
+					break;
 			}
 
-			ChanFile chanFile = new ChanFile(filepath);
-			chanFile.AddFrames(this.chanFrames);
-			chanFile.WriteFile();
+			// this.HandleFusion(sensorEvent.Value);
 		}
 
-		public void Solve()
+		protected override void PushSolverFrame(SensorEvent sensorEvent)
 		{
-			this.ConsumeSensorData();
-			this.SolveFromSolverData();
+			ulong timestamp = sensorEvent.Timestamp - this.firstTimestamp;
+			SolverFrame solverFrame;
+			SolverFrame existingSolverFrame;
+			double[] existingData;
 
-			this.solved = true;
-		}
-
-		private void ConsumeSensorData()
-		{
-			// this.accelMagnetRotation = new double[] { 0.0, 0.0, 0.0 };
-
-			foreach (SensorEvent sensorEvent in this.sensorData)
+			if (this.solverData.TryGetValue(timestamp, out existingSolverFrame))
 			{
 				switch (sensorEvent.Type)
 				{
 					case SensorEvent.SensorType.ACCEL:
-						this.HandleAccelEvent(sensorEvent);
-						this.solverData.Add(sensorEvent.Timestamp - this.firstTimestamp, new SolverFrame(sensorEvent.Timestamp - this.firstTimestamp, new double[3], this.accelMagnetRotation));
+						existingData = existingSolverFrame.Rotation;
+						solverFrame = new SolverFrame(timestamp, ref this.accelMagnetPosition, ref existingData);
 						break;
 					case SensorEvent.SensorType.GYRO:
-						// this.HandleGyroEvent(sensorEvent);
+						existingData = existingSolverFrame.Position;
+						solverFrame = new SolverFrame(timestamp, ref existingData, ref this.gyroRotation);
 						break;
-					case SensorEvent.SensorType.MAGNETIC:
-						this.HandleMagneticEvent(sensorEvent);
-						break;
+					default:
+						return;
 				}
 
-				// this.HandleFusion(sensorEvent);
+				this.solverData.Remove(timestamp);
 			}
-		}
-
-		private void SolveFromSolverData()
-		{
-			uint frameCounter = 0;
-			ulong currentTimestamp = 0;
-			ulong workingTimestamp = 0;
-			ulong limitTimestamp = 0;
-			SolverFrame currentSolverFrame = null;
-			SolverFrame maxSolverFrame = this.solverData.Last().Value;
-
-			while (currentTimestamp < maxSolverFrame.Timestamp)
+			else
 			{
-				if (this.solverData.ContainsKey(currentTimestamp))
-				{
-					currentSolverFrame = this.solverData[currentTimestamp];
-				}
-				else
-				{
-					workingTimestamp = currentTimestamp + 1;
-					limitTimestamp = Convert.ToUInt64(currentTimestamp + this.nsPerFrame / 2);
-					
-					while (workingTimestamp < limitTimestamp)
-					{
-						if (this.solverData.ContainsKey(workingTimestamp))
-						{
-							currentSolverFrame = this.solverData[workingTimestamp];
-							goto found;
-						}
-
-						workingTimestamp++;
-					}
-					found:;
-
-					if (null == currentSolverFrame)
-					{
-						throw new CameraTrackException("Unable to solve frame " + (frameCounter + 1).ToString());
-					}
-				}
-
-				this.chanFrames.Add(new ChanFrame(frameCounter + 1, currentSolverFrame.Position.ToArray(), currentSolverFrame.Rotation.ToArray()));
-
-
-				frameCounter++;
-				currentTimestamp = Convert.ToUInt64(frameCounter * this.nsPerFrame);
-				currentSolverFrame = null;
+				solverFrame = new SolverFrame(timestamp, ref this.accelMagnetPosition, ref this.gyroRotation);
 			}
+
+			this.solverData.Add(solverFrame.Timestamp, solverFrame);
 		}
 
 		private void HandleAccelEvent(SensorEvent sensorEvent)
@@ -342,11 +281,12 @@ namespace CmdCameraTrackSolver
 				this.accelMagnetRotation[0] = Math.Atan2(2.0 * x * w - 2.0 * y * z, -sqx + sqy - sqz + sqw);
 			}
 
-			this.accelMagnetRotation[0] *= GAMCameraTrackSolver.rad2grad;
-			this.accelMagnetRotation[1] *= GAMCameraTrackSolver.rad2grad;
-			this.accelMagnetRotation[2] *= GAMCameraTrackSolver.rad2grad;
+			this.accelMagnetRotation[0] *= AbstractTrackSolver.rad2grad;
+			this.accelMagnetRotation[1] *= AbstractTrackSolver.rad2grad;
+			this.accelMagnetRotation[2] *= AbstractTrackSolver.rad2grad;
 
-			// this.solverData.Add(sensorEvent.Timestamp - this.firstTimestamp, new SolverFrame(sensorEvent.Timestamp - this.firstTimestamp, new double[3], this.gyroRotation));
+
+			this.PushSolverFrame(sensorEvent);
 		}
 
 		private void HandleGyroEvent(SensorEvent sensorEvent)
@@ -363,15 +303,15 @@ namespace CmdCameraTrackSolver
 				this.gyroInitialized = true;
 			}
 
-			double deltaT = (sensorEvent.Timestamp - this.lastGyroTimestamp) * GAMCameraTrackSolver.ns2s * GAMCameraTrackSolver.rad2grad;
+			double deltaT = (sensorEvent.Timestamp - this.lastGyroTimestamp) * AbstractTrackSolver.ns2s * AbstractTrackSolver.rad2grad;
 
-			this.gyroRotation[0] += sensorEvent.X * deltaT;
-			this.gyroRotation[1] += sensorEvent.Z * deltaT;
+			this.gyroRotation[0] +=  sensorEvent.X * deltaT;
+			this.gyroRotation[1] +=  sensorEvent.Z * deltaT;
 			this.gyroRotation[2] += -sensorEvent.Y * deltaT;
 
 			this.lastGyroTimestamp = sensorEvent.Timestamp;
 
-			this.solverData.Add(sensorEvent.Timestamp - this.firstTimestamp, new SolverFrame(sensorEvent.Timestamp - this.firstTimestamp, new double[3], this.gyroRotation));
+			this.PushSolverFrame(sensorEvent);
 		}
 
 		private void HandleMagneticEvent(SensorEvent sensorEvent)
@@ -396,17 +336,18 @@ namespace CmdCameraTrackSolver
 				// do fusion
 				double t = 0.008;
 				double invt = 1.0 - t;
+				ulong timestamp = sensorEvent.Timestamp - this.firstTimestamp;
 
 				this.gyroRotation[0] = invt * this.gyroRotation[0] + t * this.accelMagnetRotation[0];
 				this.gyroRotation[1] = invt * this.gyroRotation[1] + t * this.accelMagnetRotation[1];
 				this.gyroRotation[2] = invt * this.gyroRotation[2] + t * this.accelMagnetRotation[2];
 
-				if (this.solverData.ContainsKey(sensorEvent.Timestamp - this.firstTimestamp))
+				if (this.solverData.ContainsKey(timestamp))
 				{
-					this.solverData.Remove(sensorEvent.Timestamp - this.firstTimestamp);
+					this.solverData.Remove(timestamp);
 				}
 
-				this.solverData.Add(sensorEvent.Timestamp - this.firstTimestamp, new SolverFrame(sensorEvent.Timestamp - this.firstTimestamp, new double[3], this.gyroRotation));
+				this.solverData.Add(timestamp, new SolverFrame(timestamp, ref this.accelMagnetPosition, ref this.gyroRotation));
 			}
 		}
 	}

@@ -1,12 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
-using MathNet.Numerics.LinearAlgebra;
-
-namespace CmdCameraTrackSolver
+namespace CmdCameraTrackSolver.Frames
 {
 	public class SensorEvent : IComparable<SensorEvent>
 	{
@@ -20,24 +15,30 @@ namespace CmdCameraTrackSolver
 
 		private ulong timestamp;
 		private SensorType type;
-		private Vector<double> data;
+		private double[] data;
 
 		public static SensorEvent FromTrackLine(string line)
 		{
-			string[] dataFields = line.Trim().Split('\t');
+			string[] dataFields = line.Trim().Replace(',', '.').Split('\t');
 
 			ulong dfTimestamp = ulong.Parse(dataFields[0]);
 			int dfType = int.Parse(dataFields[1]);
-			double[] dfData = new double[] { double.Parse(dataFields[2]), double.Parse(dataFields[3]), double.Parse(dataFields[4]) };
+			double[] dfData = new double[] {
+				double.Parse(dataFields[2]),
+				double.Parse(dataFields[3]),
+				double.Parse(dataFields[4])
+			};
 
-			return new SensorEvent(dfTimestamp, (SensorType) dfType, dfData);
+			return new SensorEvent(dfTimestamp, (SensorType) dfType, ref dfData);
 		}
 
-		public SensorEvent(ulong timestamp, SensorType type, double[] data)
+		public SensorEvent(ulong timestamp, SensorType type, ref double[] data)
 		{
 			this.timestamp = timestamp;
 			this.type = type;
-			this.data = Vector<double>.Build.DenseOfArray(data);
+			this.data = new double[data.Length];
+
+			Array.Copy(data, this.data, this.data.Length);
 		}
 
 		public int CompareTo(SensorEvent other)
@@ -95,7 +96,7 @@ namespace CmdCameraTrackSolver
 			}
 		}
 
-		public Vector<double> Data
+		public double[] Data
 		{
 			get
 			{
@@ -108,6 +109,21 @@ namespace CmdCameraTrackSolver
 			public int Compare(SensorEvent eventA, SensorEvent eventB)
 			{
 				return eventA.Timestamp.CompareTo(eventB.Timestamp);
+			}
+		}
+
+		public class TimestampComparer : IComparer<ulong>
+		{
+			public int Compare(ulong a, ulong b)
+			{
+				int r = a.CompareTo(b);
+
+				if (0 == r)
+				{
+					return 1;
+				}
+
+				return r;
 			}
 		}
 	}

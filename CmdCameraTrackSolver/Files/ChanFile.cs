@@ -1,21 +1,20 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
 
-namespace CmdCameraTrackSolver
+using CmdCameraTrackSolver.Frames;
+
+namespace CmdCameraTrackSolver.Files
 {
 	public class ChanFile
 	{
 		private string filepath;
-		private SortedSet<ChanFrame> frames;
+		private HashSet<ChanFrame> frames;
 
 		public ChanFile(string path)
 		{
 			this.filepath = path;
-			this.frames = new SortedSet<ChanFrame>(new ChanFrame.Comparer());
+			this.frames = new HashSet<ChanFrame>();
 		}
 
 		public bool AddFrame(ChanFrame frame)
@@ -23,19 +22,21 @@ namespace CmdCameraTrackSolver
 			return this.frames.Add(frame);
 		}
 
-		public void AddFrames(SortedSet<ChanFrame> frames)
+		public void AddFrames(IEnumerable<ChanFrame> frames)
 		{
-			foreach (ChanFrame frame in frames)
-			{
-				this.frames.Add(frame);
-			}
+			this.frames.UnionWith(frames);
 		}
 
 		public void WriteFile()
 		{
 			if (File.Exists(this.Filepath))
 			{
-				throw new IOException("Chan file already exists");
+				File.Delete(this.Filepath);
+
+				if (File.Exists(this.Filepath))
+				{
+					throw new IOException("Chan file already exists");
+				}
 			}
 
 			StreamWriter sw = new StreamWriter(this.Filepath, false, new UTF8Encoding(false));
@@ -43,7 +44,7 @@ namespace CmdCameraTrackSolver
 			foreach (ChanFrame frame in this.frames)
 			{
 				sw.Write(frame.ToString());
-				sw.Write("\n");
+				sw.Write("\r\n");
 			}
 
 			sw.Flush();
